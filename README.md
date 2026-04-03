@@ -29,9 +29,11 @@ protocol, no config files — just a Flask endpoint and a Qt window.
          LAN (Wi-Fi / Ethernet)
 ```
 
-The server uses `mss` for screen capture and Pillow to encode PNG with `compress_level=1`
-(fast encode, still lossless). A single 1080p frame is typically 200–400 KB and takes
-~125 ms to capture + encode. Over a home network that's near-instant.
+The server uses `mss` for screen capture and Pillow to encode PNG with `compress_level=0`
+(no zlib compression in the PNG stream — still lossless; larger files and slightly faster
+encode than higher levels). Transfer size varies a lot with content; expect **larger**
+files than zlib-compressed PNGs (often several MB at 1080p+). Capture + encode still takes
+on the order of ~100 ms for 1080p on a typical PC. Over a home network that's usually fine.
 
 The viewer is a PySide6 app. At 100% zoom it shows raw, unscaled pixels — no
 interpolation. Each pixmap uses the window’s `devicePixelRatio()` so **one capture

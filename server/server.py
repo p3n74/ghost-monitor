@@ -70,7 +70,7 @@ def capture():
         img = img.crop((crop_x, crop_y, crop_x + crop_w, crop_y + crop_h))
 
     buf = io.BytesIO()
-    img.save(buf, "PNG", compress_level=1)  # lossless; 1 = fast encode
+    img.save(buf, "PNG", compress_level=0)  # lossless; 0 = zlib off (largest PNGs, fastest encode)
     buf.seek(0)
     return send_file(buf, mimetype="image/png")
 
