@@ -34,8 +34,10 @@ The server uses `mss` for screen capture and Pillow to encode PNG with `compress
 ~125 ms to capture + encode. Over a home network that's near-instant.
 
 The viewer is a PySide6 app. At 100% zoom it shows raw, unscaled pixels — no
-interpolation. Zooming past 100% uses nearest-neighbour so you see clean pixel squares.
-Zooming out uses bilinear to avoid aliasing.
+interpolation. Each pixmap uses the window’s `devicePixelRatio()` so **one capture
+pixel maps to one physical LCD pixel** on Retina / HiDPI (not 2×2 physical pixels
+from treating the image as 1:1 logical points). Zooming past 100% uses nearest-neighbour
+so you see clean pixel squares. Zooming out uses bilinear to avoid aliasing.
 
 ## Setup
 
@@ -67,8 +69,8 @@ python viewer.py 192.168.x.x
 
 Replace the IP with your PC's local address (`ipconfig` on the PC to find it).
 
-The viewer opens full-screen at 1:1 zoom. Pass `--fit` to start fitted to the screen
-instead.
+The viewer opens full-screen at 1:1 zoom (one capture pixel per physical display pixel
+on the Mac). Pass `--fit` to start fitted to the screen instead.
 
 ## Controls
 

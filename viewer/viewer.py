@@ -7,7 +7,7 @@ Controls
 --------
 R           Refresh (fetch new frame)
 F           Toggle fit-to-screen / free zoom
-1           Reset to 100 % (1 image pixel = 1 display point)
+1           Reset to 100 % (1 capture pixel = 1 physical LCD pixel on this screen)
 + / =       Zoom in
 - / _       Zoom out
 S           Save current frame to disk
@@ -32,6 +32,12 @@ from PySide6.QtCore import Qt, QPoint, QEvent, QByteArray
 ZOOM_MIN = 0.02
 ZOOM_MAX = 9.0
 ZOOM_STEP = 1.1
+
+
+def _window_dpr(window: QMainWindow) -> float:
+    """Device pixel ratio for HiDPI (e.g. 2.0 on Retina). Always ≥ 1e-6."""
+    dpr = float(window.devicePixelRatio())
+    return dpr if dpr > 1e-6 else 1.0
 
 
 class GhostViewer(QMainWindow):
@@ -132,6 +138,7 @@ class GhostViewer(QMainWindow):
         self.raw_bytes = resp.content
         qimg = QImage.fromData(QByteArray(self.raw_bytes))
         self.original_pixmap = QPixmap.fromImage(qimg)
+        self._apply_pixmap_dpr(self.original_pixmap)
 
         if self.fit_mode:
             self._fit_to_screen()
@@ -141,6 +148,16 @@ class GhostViewer(QMainWindow):
         w, h = self.original_pixmap.width(), self.original_pixmap.height()
         mb = len(self.raw_bytes) / (1024 * 1024)
         self._update_status(f"Fetched {w}×{h} · {mb:.1f} MB · {elapsed:.2f}s")
+
+    def _apply_pixmap_dpr(self, pm: QPixmap) -> None:
+        """Map one pixmap raster pixel → one physical screen pixel on HiDPI displays."""
+        pm.setDevicePixelRatio(_window_dpr(self))
+
+    def _logical_pixmap_size(self, pm: QPixmap) -> tuple[int, int]:
+        dpr = float(pm.devicePixelRatio())
+        if dpr <= 1e-6:
+            dpr = 1.0
+        return (round(pm.width() / dpr), round(pm.height() / dpr))
 
     # ── Zoom / Pan ────────────────────────────────────────────────────
 
@@ -166,15 +183,18 @@ class GhostViewer(QMainWindow):
                 mode,
             )
 
+        self._apply_pixmap_dpr(pm)
         self.image_label.setPixmap(pm)
-        self.image_label.resize(pm.size())
+        lw, lh = self._logical_pixmap_size(pm)
+        self.image_label.resize(lw, lh)
 
     def _fit_to_screen(self):
         if not self.original_pixmap:
             return
         vp = self.scroll.viewport().size()
-        sx = vp.width() / self.original_pixmap.width()
-        sy = vp.height() / self.original_pixmap.height()
+        log_w, log_h = self._logical_pixmap_size(self.original_pixmap)
+        sx = vp.width() / log_w
+        sy = vp.height() / log_h
         self.zoom_level = min(sx, sy)
         self.fit_mode = True
         self._render()
@@ -206,17 +226,19 @@ class GhostViewer(QMainWindow):
         h_bar = self.scroll.horizontalScrollBar()
         v_bar = self.scroll.verticalScrollBar()
 
+        dpr = _window_dpr(self)
         if anchor is not None:
-            img_x = (h_bar.value() + anchor.x()) / self.zoom_level
-            img_y = (v_bar.value() + anchor.y()) / self.zoom_level
+            # Scroll + anchor are logical coords; convert to capture-pixel space.
+            img_x = (h_bar.value() + anchor.x()) * dpr / self.zoom_level
+            img_y = (v_bar.value() + anchor.y()) * dpr / self.zoom_level
 
         self.zoom_level = new
         self.fit_mode = False
         self._render()
 
         if anchor is not None:
-            h_bar.setValue(round(img_x * new - anchor.x()))
-            v_bar.setValue(round(img_y * new - anchor.y()))
+            h_bar.setValue(round(img_x * new / dpr - anchor.x()))
+            v_bar.setValue(round(img_y * new / dpr - anchor.y()))
 
         self._update_status()
 
@@ -256,6 +278,15 @@ class GhostViewer(QMainWindow):
         super().resizeEvent(event)
         if self.fit_mode and self.original_pixmap:
             self._fit_to_screen()
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.Type.DevicePixelRatioChange and self.original_pixmap:
+            self._apply_pixmap_dpr(self.original_pixmap)
+            if self.fit_mode:
+                self._fit_to_screen()
+            else:
+                self._render()
+        super().changeEvent(event)
 
     def eventFilter(self, obj, event):  # noqa: N802
         if obj is not self.scroll.viewport():
