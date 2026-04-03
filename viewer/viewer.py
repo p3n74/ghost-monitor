@@ -30,8 +30,8 @@ from PySide6.QtGui import QPixmap, QImage, QShortcut, QKeySequence
 from PySide6.QtCore import Qt, QPoint, QEvent, QByteArray
 
 ZOOM_MIN = 0.02
-ZOOM_MAX = 32.0
-ZOOM_STEP = 1.25
+ZOOM_MAX = 9.0
+ZOOM_STEP = 1.1
 
 
 class GhostViewer(QMainWindow):
